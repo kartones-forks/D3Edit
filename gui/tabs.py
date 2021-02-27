@@ -6,6 +6,9 @@ from save_manager import item_handler
 
 # noinspection PyAttributeOutsideInit
 class Notebook(ttk.Notebook):
+
+    MAX_COMBOBOX_SIZE = 100
+
     def __init__(self, parent, account):
         self.account = account
         self.tabs = ttk.Notebook(parent)
@@ -198,19 +201,22 @@ class Notebook(ttk.Notebook):
         seframe.grid(column=0, row=0, columnspan=2, sticky='WN')
         self.item_frame = tk.Frame(self.item_main_frame, bg='white')
         self.item_frame.grid(row=1, column=0, sticky='WN')
+
         # INSIDE ABOVE FRAME
         if self.entry == 'No Item':
             self.item_frame = AddItemFrame(
                 account=self.account, parent=self.item_main_frame, bg='white', stash=self.active_stash.get(), nb=self)
             self.item_frame.grid(column=0, row=1, sticky='WN')
             return
+
         row = 0
         v = tk.StringVar()
         v.set(self.entry['name'])
-        le = int(len(self.entry['name'])*0.9)
+        le = len(self.entry['name'])
         e = tk.Entry(self.item_frame, readonlybackground='white', fg='black', textvariable=v, bd=0, width=le,
                      state='readonly', highlightthickness=0)
         e.grid(row=row, sticky='W', columnspan=2)
+
         if self.safemode.get() == 1:
             try:
                 self.valid_values = [db.get_affix_from_id(x)[0][3] for x in self.entry['legal_affixes']]
@@ -218,6 +224,7 @@ class Notebook(ttk.Notebook):
                 self.valid_values = [x[3] for x in db.get_affix_all()]
         else:
             self.valid_values = [x[3] for x in db.get_affix_all()]
+
         category = self.entry['category']
         row = row + 1
         ttk.Label(self.item_frame, text=self.entry['slot']).grid(column=0, row=row, sticky='W')
@@ -234,7 +241,9 @@ class Notebook(ttk.Notebook):
         except KeyError:
             enchanted = False
         crow = row
-        self.cbs = []
+
+        # Affixes
+        self.comboboxes = []
         for affix, description in self.entry['affixes']:
             crow = crow + 1
             if enchanted:
@@ -245,18 +254,21 @@ class Notebook(ttk.Notebook):
             cb = ttk.Combobox(self.item_frame, textvariable=description, values=self.valid_values, state='readonly')
             cb.grid(row=crow, sticky='W')
             cb.bind("<<ComboboxSelected>>", lambda x: self.set_item_affixes(x, row))
-            self.cbs.append(cb)
-            self.size_affix_combobox()
+            self.comboboxes.append(cb)
+
         if self.affixfilter.get():
             self.update_affixes()
         button_frame = tk.Frame(self.item_frame, background='white')
         button_frame.grid(column=0, row=99, sticky='NW')
-        if self.cbs:
+        if self.comboboxes:
+            self.resize_affix_comboboxes()
             search = ttk.Entry(button_frame, textvariable=self.affixfilter)
             search.grid(column=1, row=0)
             search.bind("<KeyRelease>", self.update_affixes)
             search.bind("<space>", self.update_affixes)
             ttk.Label(button_frame, text="Affix Filter:").grid(column=0, row=0)
+
+        # Call to action buttons
         sb = ttk.Button(button_frame, text="Save Item", command=self.saveitem)
         sb.grid(column=0, row=97)
         cb = ttk.Button(button_frame, text="Duplicate Item",
@@ -271,7 +283,7 @@ class Notebook(ttk.Notebook):
 
     def update_affixes(self, event=None):
         fil = self.affixfilter.get()
-        for cb in self.cbs:
+        for cb in self.comboboxes:
             valid_values = []
             for value in self.valid_values:
                 if fil.lower() in value.lower():
@@ -279,11 +291,12 @@ class Notebook(ttk.Notebook):
             valid_values = set(valid_values)
             cb.config(values=list(valid_values))
 
-    def size_affix_combobox(self):
-        lenlist = [len(a[1].get()) for a in self.entry['affixes']]
-        self.cbl = max(lenlist)
-        for cb in self.cbs:
-            cb.config(width=self.cbl)
+    def resize_affix_comboboxes(self):
+        # self.valid_values is a) flattened so faster than self.entry['affixes'] and b) always what's being shown
+        if self.valid_values:
+            max_length = min(max([len(value) for value in self.valid_values]), self.MAX_COMBOBOX_SIZE)
+            for combobox in [cbox for cbox in self.comboboxes if cbox['width'] < max_length]:
+                combobox.config(width=max_length)
 
     def set_item_affixes(self, event, row):
         wg = event.widget
@@ -306,7 +319,7 @@ class Notebook(ttk.Notebook):
             self.entry['item'].generator.enchanted_affix_new = new_id
         else:
             self.entry['item'].generator.base_affixes[affix_changing] = new_id
-        self.size_affix_combobox()
+        self.resize_affix_comboboxes()
 
     def additem(self, **kwargs):
         self.account.additem(**kwargs)
@@ -408,29 +421,36 @@ class AddItemFrame(tk.Frame):
         lab.grid(column=0, row=6)
         ent = ttk.Entry(self, textvariable=self.addid)
         ent.grid(column=1, row=6)
+
         lab = ttk.Label(self, text="Add item from Category:")
         lab.grid(column=2, row=6)
-        cb = ttk.Combobox(self, textvariable=self.cat, values=[x[0] for x in list(set(db.get_categories()))],
-                          state='readonly')
+        categories = [x[0] for x in db.get_categories()]
+        cb = ttk.Combobox(self, textvariable=self.cat, values=categories, state='readonly')
         cb.grid(column=3, row=6, sticky='W')
+        cb['width'] = max([len(value) for value in categories])
         cb.bind("<<ComboboxSelected>>", self.update_item_options)
+
         lab = ttk.Label(self, text="Number of Affixes:")
         lab.grid(column=0, row=7)
         ent2 = ttk.Entry(self, textvariable=self.affixnum)
         ent2.grid(column=1, row=7)
+
         lab = ttk.Label(self, text="Specific Item:")
         lab.grid(column=2, row=7)
         self.itemcb = ttk.Combobox(self, textvariable=self.chosenitem, values=[], state='readonly')
         self.itemcb.grid(column=3, row=7)
         self.itemcb.bind("<<ComboboxSelected>>", self.update_item_id)
+
         lab = ttk.Label(self, text="Quality:")
         lab.grid(column=0, row=8)
         cb = ttk.Combobox(self, textvariable=self.qual, values=[x[1] for x in db.get_quality_levels()],
                           state='readonly')
         cb.grid(column=1, row=8, sticky='W')
         self.qual.set("Legendary/Set")
+
         ttk.Label(self, text="Note: If there's no space in the inventory no item will be added") \
             .grid(column=0, row=20, columnspan=2)
+
         sb = ttk.Button(self, text="Add Item", command=lambda: self.additem())
         sb.grid(column=0, row=21)
 
@@ -439,6 +459,8 @@ class AddItemFrame(tk.Frame):
         itemcbvalues = [x[0] for x in items]
         self.itemcbgbids = [x[1] for x in items]
         self.itemcb.config(values=itemcbvalues)
+        self.itemcb['width'] = max([len(value) for value in itemcbvalues])
+
         self.chosenitem.set(itemcbvalues[0])
 
     def update_item_id(self, event=None):

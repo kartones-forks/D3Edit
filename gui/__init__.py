@@ -7,6 +7,10 @@ from tkinter import ttk
 
 
 class D3Edit(object):
+
+    WINDOW_MIN_WIDTH = 900
+    WINDOW_MIN_HEIGHT = 600
+
     def __init__(self):
         message = None
         try:
@@ -22,13 +26,13 @@ class D3Edit(object):
         self.previous_file = None
         self.wcoords = None
         self.tabs = None
-        self.setupframe()
+        self.setup_frame()
         self.draw_welcome(message)
 
-    def setupframe(self, wcoords=None):
+    def setup_frame(self, wcoords=None):
         self.main_window = tk.Tk()
         self.main_window.title("D3Edit")
-        self.main_window.minsize(0, 450)
+        self.main_window.minsize(self.WINDOW_MIN_WIDTH, self.WINDOW_MIN_HEIGHT)
         if wcoords:
             self.main_window.geometry("+{0}+{1}".format(wcoords[0], wcoords[1]))
         self.style = ttk.Style(self.main_window)
@@ -39,34 +43,34 @@ class D3Edit(object):
 
     def draw_welcome(self, message=None):
         if not message:
-            message = "Account not loaded, please load an account file to begin."
+            message = "Account not loaded, please load an account file to begin"
         message_label = ttk.Label(self.main_window, text=message, style="TLabel")
-        message_label.grid(column=0, row=0, sticky='NEW')
+        message_label.place(relx=0.5, rely=0.1, anchor='center')
         message_label.configure(anchor='center')
-        open_file = ttk.Button(self.main_window, text="Open File", command=self.openfile)
+        open_file = ttk.Button(self.main_window, text="Open File", command=self.open_file)
         open_file.place(rely=0.5, relx=0.5, anchor='center')
 
     def destroy_loaded_view(self):
         wcoords = (self.main_window.winfo_x(), self.main_window.winfo_y())
         self.main_window.destroy()
-        self.setupframe(wcoords)
+        self.setup_frame(wcoords)
 
-    def openfile(self):
+    def open_file(self):
         selected_file = filedialog.askopenfilename(initialdir=".", title="Select account.dat file")
         if selected_file:
             if self.current_file:
                 self.previous_file = self.current_file
             self.current_file = selected_file
-            self.loadaccount(self.current_file)
+            self.load_account(self.current_file)
 
-    def loadaccount(self, file):
+    def load_account(self, file):
         self.account = save_manager.SaveData(file)
         self.account.output_file = file
         self.destroy_loaded_view()
         self.tabs = tabs.Notebook(self.main_window, account=self.account)
         if self.account.heroes:
             self.tabs.configure_hero_tab()
-            ttk.Button(self.tabs.hero_tab, text="Save Hero", command=self.savehero).grid(column=0, row=99)
+            ttk.Button(self.tabs.hero_tab, text="Save Hero", command=self.save_hero).grid(column=0, row=99)
         s = ttk.Button(self.tabs.account_tab, text="Save all changes", command=self.save_account)
         s.grid(column=1, row=99)
         self.tabs.configure_stash_frame()
@@ -101,7 +105,7 @@ class D3Edit(object):
         self.destroy_loaded_view()
         self.draw_welcome("Account data saved.")
 
-    def savehero(self):
+    def save_hero(self):
         hid = self.tabs.active_hid
         name = getattr(self.tabs.active_hero_data['Name'], 'get')
         level = getattr(self.tabs.active_hero_data['Level'], 'get')
